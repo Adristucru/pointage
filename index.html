@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pointage Heures & Chantiers - 39h</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    input[type="time"]::-webkit-calendar-picker-indicator {
+      filter: invert(0.7) sepia(100%) saturate(500%) hue-rotate(350deg);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen pb-12 font-sans antialiased">
+  <div class="max-w-2xl mx-auto px-4 pt-6">
+
+    <!-- En-tête -->
+    <header class="border-b border-zinc-800 pb-4 mb-5">
+      <div>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-orange-400 via-amber-400 to-yellow-300 bg-clip-text text-transparent">
+          Pointage & Chantiers
+        </h1>
+        <p class="text-xs text-zinc-400 mt-0.5">Objectif hebdomadaire : 39h00</p>
+      </div>
+
+      <!-- Navigation Semaines -->
+      <div class="flex items-center justify-between bg-zinc-900/90 border border-zinc-800 rounded-2xl p-2.5 mt-4">
+        <button onclick="changerSemaine(-1)" class="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors flex items-center gap-1.5">
+          <i class="fa-solid fa-chevron-left"></i> Préc.
+        </button>
+        <div class="text-center">
+          <div id="titreSemaine" class="text-sm font-extrabold text-orange-400">Semaine ...</div>
+          <span id="datesSemaine" class="text-[11px] text-zinc-400 block">...</span>
+          <button id="btnRetourAujourdhui" onclick="revenirSemaineCourante()" class="hidden text-[10px] text-amber-400 hover:underline mt-0.5 font-medium">
+            Revenir à cette semaine
+          </button>
+        </div>
+        <button onclick="changerSemaine(1)" class="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-colors flex items-center gap-1.5">
+          Suiv. <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Synthèse Hebdomadaire (Semaine sélectionnée) -->
+    <section class="grid grid-cols-2 gap-3 mb-3">
+      <!-- Total Réalisé -->
+      <div class="bg-zinc-900/90 backdrop-blur border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40">
+        <span class="text-xs font-medium uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-clock text-orange-400"></i> Fait cette semaine
+        </span>
+        <div class="mt-2 flex items-baseline gap-1">
+          <span id="heuresFaites" class="text-3xl font-extrabold text-white">0h00</span>
+          <span class="text-xs text-zinc-500">/ 39h</span>
+        </div>
+        <div class="w-full bg-zinc-800 h-2 rounded-full mt-3 overflow-hidden">
+          <div id="barreProgression" class="bg-gradient-to-r from-orange-500 to-amber-400 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Solde de la semaine sélectionnée -->
+      <div id="carteSoldeSemaine" class="bg-zinc-900/90 backdrop-blur border border-zinc-800 rounded-2xl p-4 shadow-lg shadow-black/40 transition-colors">
+        <span id="labelSoldeSemaine" class="text-xs font-medium uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+          <i class="fa-solid fa-hourglass-half text-amber-400"></i> Solde semaine
+        </span>
+        <div class="mt-2">
+          <span id="valeurSoldeSemaine" class="text-3xl font-extrabold text-amber-400">0h00</span>
+        </div>
+        <p id="sousTitreSoldeSemaine" class="text-xs text-zinc-500 mt-2 truncate">Par rapport aux 39h</p>
+      </div>
+    </section>
+
+    <!-- NOUVEAU : Cumul Global toutes semaines (Compteur Heures Sup / Heures dues) -->
+    <section class="mb-6">
+      <div id="carteCumulGlobal" class="bg-zinc-900/95 border border-zinc-800 rounded-2xl p-4 shadow-lg flex items-center justify-between">
+        <div>
+          <span class="text-xs font-medium uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-scale-balanced text-amber-400"></i> Cumul global (Toutes semaines)
+          </span>
+          <p id="sousTitreCumul" class="text-xs text-zinc-400 mt-1">Solde total de tes heures</p>
+        </div>
+        <div class="text-right">
+          <span id="valeurCumulGlobal" class="text-2xl sm:text-3xl font-extrabold text-white">0h00</span>
+          <span id="badgeCumul" class="block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mt-0.5">À jour</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chronomètre Pause Déjeuner -->
+    <section class="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-4 mb-6 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="relative flex h-3 w-3">
+            <span id="pingChrono" class="hidden animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+            <span id="pastilleChrono" class="relative inline-flex rounded-full h-3 w-3 bg-zinc-600"></span>
+          </span>
+          <h2 class="text-sm font-semibold text-zinc-200">Pause repas en direct</h2>
+        </div>
+        <select id="selectJourPause" class="bg-zinc-950 text-xs text-zinc-300 border border-zinc-700 rounded-lg px-2.5 py-1 focus:outline-none focus:border-orange-500">
+          <option value="0">Lundi</option>
+          <option value="1">Mardi</option>
+          <option value="2">Mercredi</option>
+          <option value="3">Jeudi</option>
+          <option value="4">Vendredi</option>
+          <option value="5">Samedi</option>
+        </select>
+      </div>
+
+      <div class="flex items-center justify-between gap-3">
+        <div class="text-2xl font-mono font-bold text-zinc-100 tracking-wider" id="affichageChrono">
+          00:00:00
+        </div>
+        <button id="btnLancerPause" onclick="actionPause()" class="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-medium text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-orange-950/40 transition-all active:scale-95">
+          <i class="fa-solid fa-play"></i> Démarrer pause
+        </button>
+      </div>
+    </section>
+
+    <!-- Liste Jours -->
+    <div id="listeJours" class="space-y-4"></div>
+
+  </div>
+
+  <script>
+    const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const CLE_STORAGE = "pointage_39h_s41_s42";
+
+    function obtenirSemaineISO(d) {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const jourNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - jourNum);
+      const anneeDebut = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      const noSemaine = Math.ceil((((date - anneeDebut) / 86400000) + 1) / 7);
+      return { annee: date.getUTCFullYear(), semaine: noSemaine };
+    }
+
+    function obtenirLundiSemaine(annee, semaine) {
+      const simple = new Date(Date.UTC(annee, 0, 1 + (semaine - 1) * 7));
+      const jourSemaine = simple.getUTCDay();
+      const lundi = new Date(simple);
+      if (jourSemaine <= 4) {
+        lundi.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
+      } else {
+        lundi.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
+      }
+      return lundi;
+    }
+
+    const infoAujourdhui = obtenirSemaineISO(new Date());
+    let anneeSelectionnee = infoAujourdhui.annee;
+    let semaineSelectionnee = infoAujourdhui.semaine;
+
+    let baseDonnees = JSON.parse(localStorage.getItem(CLE_STORAGE)) || {};
+    let chronoGlobal = JSON.parse(localStorage.getItem(CLE_STORAGE + "_chrono")) || {
+      enCours: false,
+      debutTimestamp: null,
+      cleSemaine: null,
+      jourCible: 0
+    };
+
+    function obtenirCle(annee, sem) {
+      return `${annee}-S${sem.toString().padStart(2, '0')}`;
+    }
+
+    function initialiserSemaine(cle) {
+      if (!baseDonnees[cle]) {
+        baseDonnees[cle] = JOURS.map(() => ({
+          mode: 'horaires',
+          arrivee: '',
+          depart: '',
+          dureeDirecte: '',
+          pauseMinutes: 0,
+          note: ''
+        }));
+      }
+    }
+
+    function sauvegarder() {
+      localStorage.setItem(CLE_STORAGE, JSON.stringify(baseDonnees));
+      calculerSemaine();
+    }
+
+    function formaterMinutesEnHeures(totalMin) {
+      const h = Math.floor(Math.abs(totalMin) / 60);
+      const m = Math.floor(Math.abs(totalMin) % 60);
+      return `${h}h${m.toString().padStart(2, '0')}`;
+    }
+
+    function parserDureeTexte(chaine) {
+      if (!chaine) return 0;
+      chaine = chaine.trim().replace(',', '.');
+      if (chaine.includes(':')) {
+        const [h, m] = chaine.split(':');
+        return (parseInt(h) || 0) * 60 + (parseInt(m) || 0);
+      }
+      if (chaine.toLowerCase().includes('h')) {
+        const parts = chaine.toLowerCase().split('h');
+        return (parseInt(parts[0]) || 0) * 60 + (parseInt(parts[1]) || 0);
+      }
+      const val = parseFloat(chaine);
+      return !isNaN(val) ? Math.round(val * 60) : 0;
+    }
+
+    function changerSemaine(delta) {
+      semaineSelectionnee += delta;
+      if (semaineSelectionnee < 1) {
+        anneeSelectionnee -= 1;
+        semaineSelectionnee = 52;
+      } else if (semaineSelectionnee > 52) {
+        anneeSelectionnee += 1;
+        semaineSelectionnee = 1;
+      }
+      rendreApplication();
+    }
+
+    function revenirSemaineCourante() {
+      const ref = obtenirSemaineISO(new Date());
+      anneeSelectionnee = ref.annee;
+      semaineSelectionnee = ref.semaine;
+      rendreApplication();
+    }
+
+    function calculerMinutesJour(jour) {
+      let brutMin = 0;
+      if (jour.mode === 'horaires') {
+        if (jour.arrivee && jour.depart) {
+          const [hA, mA] = jour.arrivee.split(':').map(Number);
+          const [hD, mD] = jour.depart.split(':').map(Number);
+          let diff = (hD * 60 + mD) - (hA * 60 + mA);
+          if (diff < 0) diff += 24 * 60;
+          brutMin = diff;
+        }
+      } else {
+        brutMin = parserDureeTexte(jour.dureeDirecte);
+      }
+      const netMin = Math.max(0, brutMin - (jour.pauseMinutes || 0));
+      return { brutMin, netMin };
+    }
+
+    function calculerMinutesTotalSemaine(cle) {
+      if (!baseDonnees[cle]) return 0;
+      return baseDonnees[cle].reduce((acc, jour) => acc + calculerMinutesJour(jour).netMin, 0);
+    }
+
+    function calculerSemaine() {
+      const cleActive = obtenirCle(anneeSelectionnee, semaineSelectionnee);
+      initialiserSemaine(cleActive);
+      const jours = baseDonnees[cleActive];
+
+      let totalMinutes = 0;
+      jours.forEach((j, idx) => {
+        const res = calculerMinutesJour(j);
+        totalMinutes += res.netMin;
+        const el = document.getElementById(`net-jour-${idx}`);
+        if (el) el.innerText = formaterMinutesEnHeures(res.netMin);
+      });
+
+      const OBJECTIF = 39 * 60;
+      document.getElementById('heuresFaites').innerText = formaterMinutesEnHeures(totalMinutes);
+      document.getElementById('barreProgression').style.width = `${Math.min(100, Math.round((totalMinutes / OBJECTIF) * 100))}%`;
+
+      // 1. Solde de la semaine sélectionnée
+      const differenceSemaine = totalMinutes - OBJECTIF;
+      const labelSolde = document.getElementById('labelSoldeSemaine');
+      const valeurSolde = document.getElementById('valeurSoldeSemaine');
+      const sousTitreSolde = document.getElementById('sousTitreSoldeSemaine');
+      const carteSolde = document.getElementById('carteSoldeSemaine');
+
+      if (differenceSemaine > 0) {
+        labelSolde.innerHTML = `<i class="fa-solid fa-bolt text-emerald-400"></i> Heures Supp.`;
+        valeurSolde.className = "text-3xl font-extrabold text-emerald-400";
+        valeurSolde.innerText = `+${formaterMinutesEnHeures(differenceSemaine)}`;
+        sousTitreSolde.innerText = "Au-delà des 39h";
+        carteSolde.className = "bg-emerald-950/30 border border-emerald-600/40 rounded-2xl p-4 shadow-lg";
+      } else if (differenceSemaine === 0) {
+        labelSolde.innerHTML = `<i class="fa-solid fa-check text-emerald-400"></i> Objectif atteint`;
+        valeurSolde.className = "text-3xl font-extrabold text-emerald-400";
+        valeurSolde.innerText = "0h00";
+        sousTitreSolde.innerText = "Pile 39h00";
+        carteSolde.className = "bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 shadow-lg";
+      } else {
+        labelSolde.innerHTML = `<i class="fa-solid fa-arrow-trend-down text-rose-400"></i> Heures dues`;
+        valeurSolde.className = "text-3xl font-extrabold text-rose-400";
+        valeurSolde.innerText = `-${formaterMinutesEnHeures(Math.abs(differenceSemaine))}`;
+        sousTitreSolde.innerText = "En dessous des 39h";
+        carteSolde.className = "bg-rose-950/20 border border-rose-600/30 rounded-2xl p-4 shadow-lg";
+      }
+
+      // 2. Cumul Global (toutes les semaines renseignées)
+      let cumulGlobalMinutes = 0;
+      Object.keys(baseDonnees).forEach(cle => {
+        const totalSem = calculerMinutesTotalSemaine(cle);
+        if (totalSem > 0) { // Ne compte que les semaines travaillées
+          cumulGlobalMinutes += (totalSem - OBJECTIF);
+        }
+      });
+
+      const valeurCumul = document.getElementById('valeurCumulGlobal');
+      const sousTitreCumul = document.getElementById('sousTitreCumul');
+      const badgeCumul = document.getElementById('badgeCumul');
+      const carteCumul = document.getElementById('carteCumulGlobal');
+
+      if (cumulGlobalMinutes > 0) {
+        valeurCumul.innerText = `+${formaterMinutesEnHeures(cumulGlobalMinutes)}`;
+        valeurCumul.className = "text-2xl sm:text-3xl font-extrabold text-emerald-400";
+        sousTitreCumul.innerText = "Heures supp. cumulées à récupérer / payer";
+        badgeCumul.innerText = "Positif (En avance)";
+        badgeCumul.className = "block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mt-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+        carteCumul.className = "bg-emerald-950/20 border border-emerald-600/30 rounded-2xl p-4 shadow-lg flex items-center justify-between";
+      } else if (cumulGlobalMinutes < 0) {
+        valeurCumul.innerText = `-${formaterMinutesEnHeures(Math.abs(cumulGlobalMinutes))}`;
+        valeurCumul.className = "text-2xl sm:text-3xl font-extrabold text-rose-400";
+        sousTitreCumul.innerText = "Heures en retard à rattraper";
+        badgeCumul.innerText = "Négatif (Heures dues)";
+        badgeCumul.className = "block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mt-0.5 bg-rose-500/20 text-rose-400 border border-rose-500/30";
+        carteCumul.className = "bg-rose-950/20 border border-rose-600/30 rounded-2xl p-4 shadow-lg flex items-center justify-between";
+      } else {
+        valeurCumul.innerText = "0h00";
+        valeurCumul.className = "text-2xl sm:text-3xl font-extrabold text-white";
+        sousTitreCumul.innerText = "Solde total parfaitement à jour";
+        badgeCumul.innerText = "À l'équilibre";
+        badgeCumul.className = "block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded mt-0.5 bg-zinc-800 text-zinc-400";
+        carteCumul.className = "bg-zinc-900/95 border border-zinc-800 rounded-2xl p-4 shadow-lg flex items-center justify-between";
+      }
+    }
+
+    function pointerHeure(index, type) {
+      const now = new Date();
+      const heure = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const cle = obtenirCle(anneeSelectionnee, semaineSelectionnee);
+      initialiserSemaine(cle);
+
+      if (type === 'arrivee') {
+        baseDonnees[cle][index].arrivee = heure;
+      } else {
+        baseDonnees[cle][index].depart = heure;
+      }
+      sauvegarder();
+      rendreApplication();
+    }
+
+    function changerMode(index, mode) {
+      const cle = obtenirCle(anneeSelectionnee, semaineSelectionnee);
+      baseDonnees[cle][index].mode = mode;
+      sauvegarder();
+      rendreApplication();
+    }
+
+    function definirPause(index, minutes) {
+      const cle = obtenirCle(anneeSelectionnee, semaineSelectionnee);
+      baseDonnees[cle][index].pauseMinutes = minutes;
+      const champ = document.getElementById(`pause-${index}`);
+      if (champ) champ.value = minutes;
+      sauvegarder();
+    }
+
+    let intervalChrono = null;
+    function actionPause() {
+      if (!chronoGlobal.enCours) {
+        const ajd = new Date();
+        const ref = obtenirSemaineISO(ajd);
+        chronoGlobal.enCours = true;
+        chronoGlobal.debutTimestamp = Date.now();
+        chronoGlobal.cleSemaine = obtenirCle(ref.annee, ref.semaine);
+        chronoGlobal.jourCible = parseInt(document.getElementById('selectJourPause').value);
+        localStorage.setItem(CLE_STORAGE + "_chrono", JSON.stringify(chronoGlobal));
+        demarrerBoucleChrono();
+      } else {
+        const diffMinutes = Math.round((Date.now() - chronoGlobal.debutTimestamp) / 60000);
+        const cle = chronoGlobal.cleSemaine;
+        initialiserSemaine(cle);
+        baseDonnees[cle][chronoGlobal.jourCible].pauseMinutes = (baseDonnees[cle][chronoGlobal.jourCible].pauseMinutes || 0) + diffMinutes;
+        
+        chronoGlobal.enCours = false;
+        chronoGlobal.debutTimestamp = null;
+        chronoGlobal.cleSemaine = null;
+        localStorage.setItem(CLE_STORAGE + "_chrono", JSON.stringify(chronoGlobal));
+        arreterBoucleChrono();
+        sauvegarder();
+        rendreApplication();
+      }
+    }
+
+    function actualiserAffichageChrono() {
+      if (!chronoGlobal.enCours) return;
+      const ecouleSec = Math.floor((Date.now() - chronoGlobal.debutTimestamp) / 1000);
+      const h = Math.floor(ecouleSec / 3600).toString().padStart(2, '0');
+      const m = Math.floor((ecouleSec % 3600) / 60).toString().padStart(2, '0');
+      const s = Math.floor(ecouleSec % 60).toString().padStart(2, '0');
+      document.getElementById('affichageChrono').innerText = `${h}:${m}:${s}`;
+    }
+
+    function demarrerBoucleChrono() {
+      document.getElementById('pingChrono').classList.remove('hidden');
+      document.getElementById('pastilleChrono').classList.replace('bg-zinc-600', 'bg-orange-500');
+      const btn = document.getElementById('btnLancerPause');
+      btn.innerHTML = `<i class="fa-solid fa-stop"></i> Arrêter pause`;
+      btn.className = "px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-rose-950/40 transition-all active:scale-95";
+      document.getElementById('selectJourPause').value = chronoGlobal.jourCible;
+      document.getElementById('selectJourPause').disabled = true;
+
+      clearInterval(intervalChrono);
+      intervalChrono = setInterval(actualiserAffichageChrono, 1000);
+      actualiserAffichageChrono();
+    }
+
+    function arreterBoucleChrono() {
+      clearInterval(intervalChrono);
+      document.getElementById('pingChrono').classList.add('hidden');
+      document.getElementById('pastilleChrono').classList.replace('bg-orange-500', 'bg-zinc-600');
+      const btn = document.getElementById('btnLancerPause');
+      btn.innerHTML = `<i class="fa-solid fa-play"></i> Démarrer pause`;
+      btn.className = "px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-medium text-xs sm:text-sm flex items-center gap-2 shadow-md shadow-orange-950/40 transition-all active:scale-95";
+      document.getElementById('affichageChrono').innerText = "00:00:00";
+      document.getElementById('selectJourPause').disabled = false;
+    }
+
+    function rendreApplication() {
+      const cle = obtenirCle(anneeSelectionnee, semaineSelectionnee);
+      initialiserSemaine(cle);
+      const jours = baseDonnees[cle];
+
+      const lundi = obtenirLundiSemaine(anneeSelectionnee, semaineSelectionnee);
+      const samedi = new Date(lundi);
+      samedi.setUTCDate(lundi.getUTCDate() + 5);
+
+      const options = { day: 'numeric', month: 'short' };
+      document.getElementById('titreSemaine').innerText = `Semaine ${semaineSelectionnee} • ${anneeSelectionnee}`;
+      document.getElementById('datesSemaine').innerText = `Du ${lundi.toLocaleDateString('fr-FR', options)} au ${samedi.toLocaleDateString('fr-FR', options)}`;
+
+      const estCourante = (anneeSelectionnee === infoAujourdhui.annee && semaineSelectionnee === infoAujourdhui.semaine);
+      const btnRetour = document.getElementById('btnRetourAujourdhui');
+      if (estCourante) {
+        btnRetour.classList.add('hidden');
+      } else {
+        btnRetour.classList.remove('hidden');
+      }
+
+      const container = document.getElementById('listeJours');
+      container.innerHTML = '';
+      const jourIndexAjd = (new Date().getDay() + 6) % 7;
+
+      jours.forEach((data, idx) => {
+        const estAujourdhui = estCourante && (idx === jourIndexAjd);
+        const carte = document.createElement('div');
+        carte.className = `bg-zinc-900/80 border ${estAujourdhui ? 'border-orange-500/80 ring-1 ring-orange-500/30' : 'border-zinc-800'} rounded-2xl p-4 shadow-sm transition-all`;
+
+        carte.innerHTML = `
+          <div class="flex items-center justify-between pb-3 border-b border-zinc-800">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-zinc-100 text-base">${JOURS[idx]}</span>
+              ${estAujourdhui ? '<span class="text-[10px] bg-orange-600 text-white px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">Aujourd\'hui</span>' : ''}
+              <div class="inline-flex rounded-lg bg-zinc-950 p-0.5 border border-zinc-800 text-[11px] ml-1">
+                <button onclick="changerMode(${idx}, 'horaires')" class="px-2.5 py-0.5 rounded ${data.mode === 'horaires' ? 'bg-orange-500 text-white font-semibold' : 'text-zinc-400 hover:text-zinc-200'}">
+                  Horaires
+                </button>
+                <button onclick="changerMode(${idx}, 'direct')" class="px-2.5 py-0.5 rounded ${data.mode === 'direct' ? 'bg-orange-500 text-white font-semibold' : 'text-zinc-400 hover:text-zinc-200'}">
+                  Direct
+                </button>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-[11px] text-zinc-400 block leading-tight">Net fait</span>
+              <span id="net-jour-${idx}" class="text-lg font-bold text-orange-400">0h00</span>
+            </div>
+          </div>
+
+          <div class="pt-3">
+            ${data.mode === 'horaires' ? `
+              <div class="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] font-medium text-zinc-400 flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Arrivée
+                    </label>
+                    <button onclick="pointerHeure(${idx}, 'arrivee')" class="text-[10px] text-orange-400 hover:text-orange-300 font-medium">
+                      Maintenant
+                    </button>
+                  </div>
+                  <input type="time" value="${data.arrivee || ''}" onchange="baseDonnees['${cle}'][${idx}].arrivee = this.value; sauvegarder();" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-orange-500 font-mono">
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="text-[11px] font-medium text-zinc-400 flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> Départ
+                    </label>
+                    <button onclick="pointerHeure(${idx}, 'depart')" class="text-[10px] text-orange-400 hover:text-orange-300 font-medium">
+                      Maintenant
+                    </button>
+                  </div>
+                  <input type="time" value="${data.depart || ''}" onchange="baseDonnees['${cle}'][${idx}].depart = this.value; sauvegarder();" class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-sm text-white focus:outline-none focus:border-orange-500 font-mono">
+                </div>
+              </div>
+            ` : `
+              <div class="mb-3">
+                <label class="text-[11px] font-medium text-zinc-400 block mb-1">Durée effectuée (ex: 7h48 ou 8)</label>
+                <div class="flex gap-2">
+                  <input type="text" value="${data.dureeDirecte || ''}" placeholder="Ex: 8h00" oninput="baseDonnees['${cle}'][${idx}].dureeDirecte = this.value; sauvegarder();" class="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-sm text-white focus:outline-none focus:border-orange-500 font-mono">
+                  <button onclick="baseDonnees['${cle}'][${idx}].dureeDirecte = '7h48'; sauvegarder(); rendreApplication();" class="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl border border-zinc-700">7h48</button>
+                  <button onclick="baseDonnees['${cle}'][${idx}].dureeDirecte = '8h00'; sauvegarder(); rendreApplication();" class="px-2.5 py-1 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl border border-zinc-700">8h</button>
+                </div>
+              </div>
+            `}
+
+            <div class="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/80 text-xs">
+              <span class="text-zinc-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-utensils text-zinc-500"></i> Pause déduite :
+              </span>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="pause-${idx}" min="0" step="5" value="${data.pauseMinutes || 0}" oninput="baseDonnees['${cle}'][${idx}].pauseMinutes = parseInt(this.value) || 0; sauvegarder();" class="w-14 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-right text-xs text-white focus:outline-none focus:border-orange-500 font-mono">
+                <span class="text-zinc-400 text-xs">min</span>
+                <button onclick="definirPause(${idx}, 45)" class="px-2 py-0.5 text-[10px] bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300">45m</button>
+                <button onclick="definirPause(${idx}, 60)" class="px-2 py-0.5 text-[10px] bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-300">1h</button>
+              </div>
+            </div>
+
+            <div class="mt-3 pt-2.5 border-t border-zinc-800/80">
+              <label class="text-[11px] font-medium text-zinc-400 flex items-center gap-1.5 mb-1.5">
+                <i class="fa-solid fa-pen-to-square text-orange-400"></i> Notes & Chantiers du jour
+              </label>
+              <textarea 
+                rows="2" 
+                placeholder="Ex : IRVE client Dupont, passage câbles armoire..." 
+                oninput="baseDonnees['${cle}'][${idx}].note = this.value; sauvegarder();"
+                class="w-full bg-zinc-950/90 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/50 resize-y"
+              >${data.note || ''}</textarea>
+            </div>
+
+          </div>
+        `;
+
+        container.appendChild(carte);
+      });
+
+      calculerSemaine();
+
+      if (estCourante && jourIndexAjd < 6 && !chronoGlobal.enCours) {
+        document.getElementById('selectJourPause').value = jourIndexAjd;
+      }
+    }
+
+    rendreApplication();
+    if (chronoGlobal.enCours) demarrerBoucleChrono();
+  </script>
+</body>
+</html>
