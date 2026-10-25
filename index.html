@@ -6,6 +6,11 @@
   <title>Pointage Heures & Chantiers — 39h</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Librairies pour l'exportation PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <style>
     input[type="time"]::-webkit-calendar-picker-indicator {
       filter: invert(0.8);
@@ -14,7 +19,7 @@
   </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen p-3 md:p-6 font-sans antialiased">
-  <div class="max-w-2xl mx-auto space-y-4">
+  <div id="conteneur-application" class="max-w-2xl mx-auto space-y-4">
 
     <!-- En-tête -->
     <header class="border-b border-zinc-800 pb-3 flex justify-between items-center">
@@ -24,58 +29,28 @@
         </h1>
         <p class="text-xs text-zinc-400">Objectif hebdomadaire : 39h00</p>
       </div>
-      <button onclick="reinitialiserSemaine()" class="text-xs text-zinc-500 hover:text-red-400 transition-colors">
-        <i class="fa-solid fa-rotate-left mr-1"></i>Remise à zéro
-      </button>
+      <div class="flex items-center gap-2">
+        <button onclick="exporterPDF()" class="text-xs px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-file-pdf text-red-400"></i>
+          <span>Exporter PDF</span>
+        </button>
+        <button onclick="reinitialiserSemaine()" title="Remise à zéro complète" class="text-xs text-zinc-500 hover:text-red-400 transition-colors p-1.5">
+          <i class="fa-solid fa-rotate-left"></i>
+        </button>
+      </div>
     </header>
 
-    <!-- Navigation semaine -->
-    <div class="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl p-2.5">
-      <button onclick="changerSemaine(-1)" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-medium transition-colors">
-        <i class="fa-solid fa-chevron-left mr-1"></i>Précédent
-      </button>
-      <div class="text-center">
-        <div id="label-semaine" class="text-sm font-semibold text-zinc-200">Semaine en cours</div>
-        <div id="dates-semaine" class="text-xs text-zinc-400">--/-- au --/--</div>
-      </div>
-      <button onclick="changerSemaine(1)" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-medium transition-colors">
-        Suivant<i class="fa-solid fa-chevron-right ml-1"></i>
-      </button>
-    </div>
-
-    <!-- Récapitulatif -->
+    <!-- Actions rapides de pointage (repositionnées en haut) -->
     <div class="grid grid-cols-2 gap-3">
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
-        <span class="text-xs text-zinc-400 uppercase tracking-wider block">Fait cette semaine</span>
-        <span id="total-heures" class="text-2xl font-bold text-amber-400">00h00</span>
-      </div>
-      
-      <!-- Solde avec bouton RAZ -->
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between">
-        <div class="flex justify-between items-start">
-          <span class="text-xs text-zinc-400 uppercase tracking-wider block">Solde (base 39h)</span>
-          <button onclick="razHeuresSupp()" title="Remettre à zéro le solde" class="text-xs px-2 py-0.5 rounded bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-400 transition-colors border border-zinc-700">
-            <i class="fa-solid fa-arrows-rotate mr-1"></i>RAZ
-          </button>
-        </div>
-        <div class="mt-1">
-          <span id="solde-heures" class="text-2xl font-bold text-red-400">-39h00</span>
-          <span id="offset-heures-info" class="text-[10px] text-zinc-500 block"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Actions rapides de pointage (Actives du lundi au vendredi sur la semaine courante) -->
-    <div class="grid grid-cols-2 gap-3">
-      <button onclick="pointerMaintenant('arrivee')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+      <button onclick="pointerMaintenant('arrivee')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40">
         <i class="fa-solid fa-right-to-bracket"></i>Pointer l'arrivée
       </button>
-      <button onclick="pointerMaintenant('depart')" class="py-3 px-4 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
+      <button onclick="pointerMaintenant('depart')" class="py-3 px-4 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-950/40">
         <i class="fa-solid fa-right-from-bracket"></i>Pointer le départ
       </button>
     </div>
 
-    <!-- Chronomètre Pause en direct -->
+    <!-- Chronomètre Pause en direct (repositionné en haut) -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div id="chrono-icon" class="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 text-sm">
@@ -91,9 +66,56 @@
       </button>
     </div>
 
-    <!-- Liste des jours (Lundi à Vendredi) -->
-    <div id="liste-jours" class="space-y-3">
-      <!-- Rendu dynamique -->
+    <!-- Bannière état GPS -->
+    <div id="gps-status" class="hidden text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-lg p-2 flex items-center gap-2">
+      <i class="fa-solid fa-location-crosshairs fa-spin"></i>
+      <span id="gps-status-text">Recherche de la position GPS...</span>
+    </div>
+
+    <!-- Zone exportée dans le PDF (Feuille de semaine) -->
+    <div id="zone-rapport-pdf" class="space-y-4">
+      
+      <!-- Navigation semaine -->
+      <div class="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl p-2.5">
+        <button onclick="changerSemaine(-1)" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-medium transition-colors">
+          <i class="fa-solid fa-chevron-left mr-1"></i>Précédent
+        </button>
+        <div class="text-center">
+          <div id="label-semaine" class="text-sm font-semibold text-zinc-200">Semaine en cours</div>
+          <div id="dates-semaine" class="text-xs text-zinc-400">--/-- au --/--</div>
+        </div>
+        <button onclick="changerSemaine(1)" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-medium transition-colors">
+          Suivant<i class="fa-solid fa-chevron-right ml-1"></i>
+        </button>
+      </div>
+
+      <!-- Récapitulatif -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+          <span class="text-xs text-zinc-400 uppercase tracking-wider block">Fait cette semaine</span>
+          <span id="total-heures" class="text-2xl font-bold text-amber-400">00h00</span>
+        </div>
+        
+        <!-- Solde avec bouton RAZ -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between">
+          <div class="flex justify-between items-start">
+            <span class="text-xs text-zinc-400 uppercase tracking-wider block">Solde (base 39h)</span>
+            <button onclick="razHeuresSupp()" title="Remettre à zéro le solde" class="text-xs px-2 py-0.5 rounded bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-400 transition-colors border border-zinc-700">
+              <i class="fa-solid fa-arrows-rotate mr-1"></i>RAZ
+            </button>
+          </div>
+          <div class="mt-1">
+            <span id="solde-heures" class="text-2xl font-bold text-red-400">-39h00</span>
+            <span id="offset-heures-info" class="text-[10px] text-zinc-500 block"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Liste des jours (Lundi à Vendredi) -->
+      <div id="liste-jours" class="space-y-3">
+        <!-- Rendu dynamique -->
+      </div>
+
     </div>
 
   </div>
@@ -119,7 +141,7 @@
       }
       if (!data) {
         data = {
-          jours: JOURS.map(j => ({ jour: j, arrivee: '', depart: '', pause: 60, chantier: '' })),
+          jours: JOURS.map(j => ({ jour: j, arrivee: '', depart: '', pause: 0, chantier: '', coords: null })),
           ajustementMinutes: 0
         };
       }
@@ -131,7 +153,7 @@
         return {
           jours: JOURS.map(nom => {
             const exist = donnees.find(d => d.jour === nom);
-            return exist || { jour: nom, arrivee: '', depart: '', pause: 60, chantier: '' };
+            return exist ? { ...exist, pause: exist.pause === 60 ? 0 : (exist.pause ?? 0), coords: exist.coords || null } : { jour: nom, arrivee: '', depart: '', pause: 0, chantier: '', coords: null };
           }),
           ajustementMinutes: 0
         };
@@ -139,7 +161,7 @@
       if (donnees && donnees.jours) {
         donnees.jours = JOURS.map(nom => {
           const exist = donnees.jours.find(d => d.jour === nom);
-          return exist || { jour: nom, arrivee: '', depart: '', pause: 60, chantier: '' };
+          return exist ? { ...exist, pause: exist.pause === 60 ? 0 : (exist.pause ?? 0), coords: exist.coords || null } : { jour: nom, arrivee: '', depart: '', pause: 0, chantier: '', coords: null };
         });
       }
       return donnees;
@@ -206,14 +228,11 @@
       document.getElementById(`total-${idx}`).textContent = formaterHeures(calculerMinutes(state.jours[idx].arrivee, state.jours[idx].depart, state.jours[idx].pause));
     }
 
-    // Récupère l'index du jour ouvré actuel uniquement si on est du lundi au vendredi sur la semaine en cours
     function getIndexJourActuelStrict() {
       if (offsetSemaine !== 0) return -1;
       const jour = new Date().getDay();
-      if (jour >= 1 && jour <= 5) {
-        return jour - 1; // 0 = Lundi ... 4 = Vendredi
-      }
-      return -1; // Samedi ou Dimanche
+      if (jour >= 1 && jour <= 5) return jour - 1;
+      return -1;
     }
 
     function getHeureActuelle() {
@@ -221,27 +240,75 @@
       return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     }
 
+    function recupererLieuGPS(idx) {
+      if (!navigator.geolocation) {
+        alert("La géolocalisation n'est pas supportée par votre navigateur.");
+        return;
+      }
+
+      const statusBox = document.getElementById('gps-status');
+      const statusText = document.getElementById('gps-status-text');
+      statusBox.classList.remove('hidden');
+      statusText.textContent = "Recherche de la position GPS en cours...";
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+
+          try {
+            statusText.textContent = "Identification de la commune...";
+            const res = await fetch(`https://api-adresse.data.gouv.fr/reverse/?lon=${lon}&lat=${lat}`);
+            const data = await res.json();
+
+            let nomLieu = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+            if (data.features && data.features.length > 0) {
+              const f = data.features[0].properties;
+              nomLieu = f.city || f.name || f.label;
+            }
+
+            const state = chargerDonnees();
+            const chantierActuel = state.jours[idx].chantier ? `${state.jours[idx].chantier} | ` : '';
+            state.jours[idx].chantier = `${chantierActuel}${nomLieu}`.trim();
+            state.jours[idx].coords = { lat, lon };
+            sauvegarderDonnees(state);
+            rendreVue();
+          } catch (e) {
+            console.error(e);
+            const state = chargerDonnees();
+            state.jours[idx].coords = { lat, lon };
+            sauvegarderDonnees(state);
+            rendreVue();
+          } finally {
+            statusBox.classList.add('hidden');
+          }
+        },
+        (error) => {
+          statusBox.classList.add('hidden');
+          console.warn("Erreur GPS :", error.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    }
+
     function pointerMaintenant(type) {
       const idx = getIndexJourActuelStrict();
       if (idx === -1) {
-        alert("Le pointage rapide automatique ne fonctionne que du lundi au vendredi pendant la semaine en cours. Pour modifier un autre jour, utilise les champs ou les boutons du jour concerné.");
+        alert("Le pointage automatique ne fonctionne que du lundi au vendredi sur la semaine en cours.");
         return;
       }
 
       const state = chargerDonnees();
       const heure = getHeureActuelle();
 
-      if (type === 'arrivee') {
-        state.jours[idx].arrivee = heure;
-      } else if (type === 'depart') {
-        state.jours[idx].depart = heure;
-      }
+      if (type === 'arrivee') state.jours[idx].arrivee = heure;
+      if (type === 'depart') state.jours[idx].depart = heure;
 
       sauvegarderDonnees(state);
       rendreVue();
+      recupererLieuGPS(idx);
     }
 
-    // Pointage direct sur un jour précis
     function pointerJourDirect(idx, type) {
       const state = chargerDonnees();
       const heure = getHeureActuelle();
@@ -347,6 +414,92 @@
       }
     }
 
+    async function exporterPDF() {
+      const { jsPDF } = window.jspdf;
+      
+      const titreSemaine = document.getElementById('label-semaine').textContent;
+      const datesSemaine = document.getElementById('dates-semaine').textContent;
+      const totalFait = document.getElementById('total-heures').textContent;
+      const solde39h = document.getElementById('solde-heures').textContent;
+
+      const state = chargerDonnees();
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      doc.setFont('helvetica', 'normal');
+
+      // En-tête PDF
+      doc.setFillColor(24, 24, 27);
+      doc.rect(0, 0, 210, 35, 'F');
+
+      doc.setTextColor(245, 158, 11);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text("Relevé d'Heures & Déplacements", 14, 15);
+
+      doc.setTextColor(212, 212, 216);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${titreSemaine} (${datesSemaine}) — Base légale : 39h00`, 14, 25);
+
+      // Résumé Heures
+      doc.setFillColor(244, 244, 245);
+      doc.rect(14, 42, 182, 18, 'F');
+      doc.setDrawColor(228, 228, 231);
+      doc.rect(14, 42, 182, 18, 'S');
+
+      doc.setTextColor(39, 39, 42);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total réalisé : ${totalFait}`, 20, 53);
+      doc.text(`Solde hebdomadaire : ${solde39h}`, 110, 53);
+
+      // Tableau des jours
+      let y = 70;
+      doc.setFontSize(10);
+      doc.setFillColor(228, 228, 231);
+      doc.rect(14, y, 182, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(24, 24, 27);
+      doc.text("Jour", 18, y + 5.5);
+      doc.text("Arrivée", 45, y + 5.5);
+      doc.text("Départ", 70, y + 5.5);
+      doc.text("Pause", 95, y + 5.5);
+      doc.text("Total", 115, y + 5.5);
+      doc.text("Chantier / Commune / Trajet", 135, y + 5.5);
+
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+
+      state.jours.forEach(d => {
+        const totalJour = formaterHeures(calculerMinutes(d.arrivee, d.depart, d.pause));
+        doc.setDrawColor(228, 228, 231);
+        doc.rect(14, y, 182, 12, 'S');
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(d.jour, 18, y + 7);
+        doc.setFont('helvetica', 'normal');
+        doc.text(d.arrivee || '--:--', 45, y + 7);
+        doc.text(d.depart || '--:--', 70, y + 7);
+        doc.text(`${d.pause || 0} min`, 95, y + 7);
+        doc.text(totalJour, 115, y + 7);
+
+        const chantierTexte = d.chantier ? d.chantier : '-';
+        const coordsTexte = d.coords ? ` (${d.coords.lat.toFixed(3)}, ${d.coords.lon.toFixed(3)})` : '';
+        const resumeLieu = (chantierTexte + coordsTexte).substring(0, 35);
+        doc.text(resumeLieu, 135, y + 7);
+
+        y += 12;
+      });
+
+      // Pied de page
+      doc.setFontSize(8);
+      doc.setTextColor(113, 113, 122);
+      doc.text(`Document justificatif exporté le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, 14, 285);
+
+      const nomFichier = `Releve_Heures_${getCleStockage()}.pdf`;
+      doc.save(nomFichier);
+    }
+
     function rendreVue() {
       majAffichageSemaine();
       const state = chargerDonnees();
@@ -358,6 +511,8 @@
       state.jours.forEach((d, idx) => {
         const total = calculerMinutes(d.arrivee, d.depart, d.pause);
         const estAujourdhui = (idx === jourActuelIndex);
+        const lienMaps = d.coords ? `https://www.google.com/maps?q=${d.coords.lat},${d.coords.lon}` : null;
+
         const card = document.createElement('div');
         card.className = `bg-zinc-900 border ${estAujourdhui ? 'border-amber-500/50' : 'border-zinc-800'} rounded-xl p-3 space-y-2`;
         card.innerHTML = `
@@ -376,6 +531,7 @@
               <span id="total-${idx}" class="text-xs font-bold px-2 py-0.5 rounded bg-zinc-800 text-amber-400">${formaterHeures(total)}</span>
             </div>
           </div>
+
           <div class="grid grid-cols-3 gap-2 pt-1 text-xs">
             <div>
               <label class="text-zinc-500 block mb-1">Arrivée</label>
@@ -387,11 +543,24 @@
             </div>
             <div>
               <label class="text-zinc-500 block mb-1">Pause (min)</label>
-              <input type="number" step="5" value="${d.pause}" onchange="majChamp(${idx}, 'pause', this.value)" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:border-amber-500 focus:outline-none">
+              <input type="number" step="5" value="${d.pause ?? 0}" onchange="majChamp(${idx}, 'pause', this.value)" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:border-amber-500 focus:outline-none">
             </div>
           </div>
-          <div>
-            <input type="text" placeholder="Chantier ou tâche..." value="${d.chantier || ''}" onchange="majChamp(${idx}, 'chantier', this.value)" class="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-300 placeholder-zinc-600 focus:border-amber-500 focus:outline-none">
+
+          <!-- Ligne Chantier & Localisation GPS -->
+          <div class="flex items-center gap-2">
+            <input type="text" placeholder="Chantier, commune ou tâche..." value="${d.chantier || ''}" onchange="majChamp(${idx}, 'chantier', this.value)" class="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-xs text-zinc-300 placeholder-zinc-600 focus:border-amber-500 focus:outline-none">
+            
+            <button onclick="recupererLieuGPS(${idx})" title="Relever ma position GPS actuelle" class="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs border border-zinc-700 flex items-center gap-1 transition-colors">
+              <i class="fa-solid fa-location-dot text-amber-400"></i>
+              <span class="hidden sm:inline">GPS</span>
+            </button>
+
+            ${lienMaps ? `
+              <a href="${lienMaps}" target="_blank" title="Ouvrir dans Google Maps" class="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs border border-zinc-700 flex items-center gap-1 transition-colors">
+                <i class="fa-solid fa-map-location-dot text-emerald-400"></i>
+              </a>
+            ` : ''}
           </div>
         `;
         container.appendChild(card);
