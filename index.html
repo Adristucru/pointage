@@ -40,7 +40,7 @@
       </div>
     </header>
 
-    <!-- Actions rapides de pointage (repositionnées en haut) -->
+    <!-- Actions rapides de pointage en haut -->
     <div class="grid grid-cols-2 gap-3">
       <button onclick="pointerMaintenant('arrivee')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40">
         <i class="fa-solid fa-right-to-bracket"></i>Pointer l'arrivée
@@ -50,7 +50,7 @@
       </button>
     </div>
 
-    <!-- Chronomètre Pause en direct (repositionné en haut) -->
+    <!-- Chronomètre Pause en direct -->
     <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div id="chrono-icon" class="w-9 h-9 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-400 text-sm">
@@ -75,13 +75,13 @@
     <!-- Zone exportée dans le PDF (Feuille de semaine) -->
     <div id="zone-rapport-pdf" class="space-y-4">
       
-      <!-- Navigation semaine -->
+      <!-- Navigation semaine avec Numéro de Semaine -->
       <div class="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-xl p-2.5">
         <button onclick="changerSemaine(-1)" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-medium transition-colors">
           <i class="fa-solid fa-chevron-left mr-1"></i>Précédent
         </button>
         <div class="text-center">
-          <div id="label-semaine" class="text-sm font-semibold text-zinc-200">Semaine en cours</div>
+          <div id="label-semaine" class="text-sm font-semibold text-zinc-200">Semaine --</div>
           <div id="dates-semaine" class="text-xs text-zinc-400">--/-- au --/--</div>
         </div>
         <button onclick="changerSemaine(1)" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-medium transition-colors">
@@ -125,12 +125,28 @@
     let offsetSemaine = 0;
     let timerInterval = null;
 
-    function getCleStockage() {
+    // Calcul officiel ISO du numéro de semaine (1 à 52/53)
+    function getNumeroSemaineISO(d) {
+      const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const jourNum = date.getUTCDay() || 7;
+      date.setUTCDate(date.getUTCDate() + 4 - jourNum);
+      const debutAnnee = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+      return Math.ceil((((date - debutAnnee) / 86400000) + 1) / 7);
+    }
+
+    function getDateLundiSemaine() {
       const now = new Date();
       now.setDate(now.getDate() + (offsetSemaine * 7));
-      const debutAnnee = new Date(now.getFullYear(), 0, 1);
-      const numSemaine = Math.ceil((((now - debutAnnee) / 86400000) + debutAnnee.getDay() + 1) / 7);
-      return `pointage_${now.getFullYear()}_S${numSemaine}`;
+      const jour = now.getDay() || 7; // 1 = Lundi, 7 = Dimanche
+      const lundi = new Date(now);
+      lundi.setDate(now.getDate() - (jour - 1));
+      return lundi;
+    }
+
+    function getCleStockage() {
+      const lundi = getDateLundiSemaine();
+      const numSemaine = getNumeroSemaineISO(lundi);
+      return `pointage_${lundi.getFullYear()}_S${String(numSemaine).padStart(2, '0')}`;
     }
 
     function chargerDonnees() {
@@ -188,14 +204,15 @@
     }
 
     function majAffichageSemaine() {
-      const now = new Date();
-      now.setDate(now.getDate() + (offsetSemaine * 7));
-      const curr = new Date(now);
-      const premierJour = new Date(curr.setDate(curr.getDate() - curr.getDay() + 1));
-      const dernierJour = new Date(curr.setDate(curr.getDate() - curr.getDay() + 5));
+      const premierJour = getDateLundiSemaine();
+      const dernierJour = new Date(premierJour);
+      dernierJour.setDate(premierJour.getDate() + 4); // Vendredi
 
+      const numSemaine = getNumeroSemaineISO(premierJour);
       const f = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-      document.getElementById('label-semaine').textContent = offsetSemaine === 0 ? 'Cette semaine' : `Semaine ${offsetSemaine > 0 ? '+' : ''}${offsetSemaine}`;
+
+      const texteSemaine = offsetSemaine === 0 ? `Semaine ${numSemaine} (en cours)` : `Semaine ${numSemaine}`;
+      document.getElementById('label-semaine').textContent = texteSemaine;
       document.getElementById('dates-semaine').textContent = `Du ${f(premierJour)} au ${f(dernierJour)}`;
     }
 
@@ -439,7 +456,7 @@
       doc.setTextColor(212, 212, 216);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`${titreSemaine} (${datesSemaine}) — Base légale : 39h00`, 14, 25);
+      doc.text(`${titreSemaine} (${datesSemaine}) — Base : 39h00`, 14, 25);
 
       // Résumé Heures
       doc.setFillColor(244, 244, 245);
@@ -494,7 +511,7 @@
       // Pied de page
       doc.setFontSize(8);
       doc.setTextColor(113, 113, 122);
-      doc.text(`Document justificatif exporté le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, 14, 285);
+      doc.text(`Document exporté le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}`, 14, 285);
 
       const nomFichier = `Releve_Heures_${getCleStockage()}.pdf`;
       doc.save(nomFichier);
