@@ -25,7 +25,7 @@
         <p class="text-xs text-zinc-400">Objectif hebdomadaire : 39h00</p>
       </div>
       <button onclick="reinitialiserSemaine()" class="text-xs text-zinc-500 hover:text-red-400 transition-colors">
-        <i class="fa-solid fa-rotate-left mr-1"></i>RAZ semaine complète
+        <i class="fa-solid fa-rotate-left mr-1"></i>Remise à zéro
       </button>
     </header>
 
@@ -50,11 +50,11 @@
         <span id="total-heures" class="text-2xl font-bold text-amber-400">00h00</span>
       </div>
       
-      <!-- Bloc Solde / Heures supp avec RAZ -->
-      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 relative flex flex-col justify-between">
+      <!-- Solde avec bouton RAZ -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-3 flex flex-col justify-between">
         <div class="flex justify-between items-start">
-          <span class="text-xs text-zinc-400 uppercase tracking-wider block">Solde / Heures supp</span>
-          <button onclick="razHeuresSupp()" title="Remettre à zéro les heures supp" class="text-xs px-2 py-0.5 rounded bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-400 transition-colors border border-zinc-700">
+          <span class="text-xs text-zinc-400 uppercase tracking-wider block">Solde (base 39h)</span>
+          <button onclick="razHeuresSupp()" title="Remettre à zéro le solde" class="text-xs px-2 py-0.5 rounded bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-400 transition-colors border border-zinc-700">
             <i class="fa-solid fa-arrows-rotate mr-1"></i>RAZ
           </button>
         </div>
@@ -65,12 +65,12 @@
       </div>
     </div>
 
-    <!-- Actions rapides de pointage -->
+    <!-- Actions rapides de pointage (Actives du lundi au vendredi sur la semaine courante) -->
     <div class="grid grid-cols-2 gap-3">
-      <button onclick="pointerMaintenant('arrivee')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/40">
+      <button onclick="pointerMaintenant('arrivee')" class="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
         <i class="fa-solid fa-right-to-bracket"></i>Pointer l'arrivée
       </button>
-      <button onclick="pointerMaintenant('depart')" class="py-3 px-4 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-lg shadow-orange-950/40">
+      <button onclick="pointerMaintenant('depart')" class="py-3 px-4 bg-orange-600 hover:bg-orange-500 text-white font-medium rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
         <i class="fa-solid fa-right-from-bracket"></i>Pointer le départ
       </button>
     </div>
@@ -93,7 +93,7 @@
 
     <!-- Liste des jours (Lundi à Vendredi) -->
     <div id="liste-jours" class="space-y-3">
-      <!-- Généré dynamiquement en JS -->
+      <!-- Rendu dynamique -->
     </div>
 
   </div>
@@ -113,22 +113,34 @@
 
     function chargerDonnees() {
       const raw = localStorage.getItem(getCleStockage());
-      if (raw) return JSON.parse(raw);
-      return {
-        jours: JOURS.map(j => ({ jour: j, arrivee: '', depart: '', pause: 60, chantier: '' })),
-        ajustementMinutes: 0
-      };
+      let data;
+      if (raw) {
+        try { data = JSON.parse(raw); } catch (e) { data = null; }
+      }
+      if (!data) {
+        data = {
+          jours: JOURS.map(j => ({ jour: j, arrivee: '', depart: '', pause: 60, chantier: '' })),
+          ajustementMinutes: 0
+        };
+      }
+      return normaliserDonnees(data);
     }
 
     function normaliserDonnees(donnees) {
       if (Array.isArray(donnees)) {
-        return { 
-          jours: donnees.filter(d => d.jour !== 'Samedi'), 
-          ajustementMinutes: 0 
+        return {
+          jours: JOURS.map(nom => {
+            const exist = donnees.find(d => d.jour === nom);
+            return exist || { jour: nom, arrivee: '', depart: '', pause: 60, chantier: '' };
+          }),
+          ajustementMinutes: 0
         };
       }
       if (donnees && donnees.jours) {
-        donnees.jours = donnees.jours.filter(d => d.jour !== 'Samedi');
+        donnees.jours = JOURS.map(nom => {
+          const exist = donnees.jours.find(d => d.jour === nom);
+          return exist || { jour: nom, arrivee: '', depart: '', pause: 60, chantier: '' };
+        });
       }
       return donnees;
     }
@@ -166,7 +178,7 @@
     }
 
     function calculerTotaux() {
-      const state = normaliserDonnees(chargerDonnees());
+      const state = chargerDonnees();
       let totalMin = 0;
       state.jours.forEach(d => {
         totalMin += calculerMinutes(d.arrivee, d.depart, d.pause);
@@ -188,32 +200,59 @@
     }
 
     function majChamp(idx, champ, valeur) {
-      const state = normaliserDonnees(chargerDonnees());
+      const state = chargerDonnees();
       state.jours[idx][champ] = valeur;
       sauvegarderDonnees(state);
       document.getElementById(`total-${idx}`).textContent = formaterHeures(calculerMinutes(state.jours[idx].arrivee, state.jours[idx].depart, state.jours[idx].pause));
     }
 
-    function getIndexAujourdhui() {
+    // Récupère l'index du jour ouvré actuel uniquement si on est du lundi au vendredi sur la semaine en cours
+    function getIndexJourActuelStrict() {
+      if (offsetSemaine !== 0) return -1;
       const jour = new Date().getDay();
-      return (jour >= 1 && jour <= 5) ? jour - 1 : 4;
+      if (jour >= 1 && jour <= 5) {
+        return jour - 1; // 0 = Lundi ... 4 = Vendredi
+      }
+      return -1; // Samedi ou Dimanche
+    }
+
+    function getHeureActuelle() {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     }
 
     function pointerMaintenant(type) {
-      const state = normaliserDonnees(chargerDonnees());
-      const idx = getIndexAujourdhui();
-      const now = new Date();
-      const heure = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const idx = getIndexJourActuelStrict();
+      if (idx === -1) {
+        alert("Le pointage rapide automatique ne fonctionne que du lundi au vendredi pendant la semaine en cours. Pour modifier un autre jour, utilise les champs ou les boutons du jour concerné.");
+        return;
+      }
 
-      if (type === 'arrivee') state.jours[idx].arrivee = heure;
-      if (type === 'depart') state.jours[idx].depart = heure;
+      const state = chargerDonnees();
+      const heure = getHeureActuelle();
+
+      if (type === 'arrivee') {
+        state.jours[idx].arrivee = heure;
+      } else if (type === 'depart') {
+        state.jours[idx].depart = heure;
+      }
 
       sauvegarderDonnees(state);
       rendreVue();
     }
 
+    // Pointage direct sur un jour précis
+    function pointerJourDirect(idx, type) {
+      const state = chargerDonnees();
+      const heure = getHeureActuelle();
+      if (type === 'arrivee') state.jours[idx].arrivee = heure;
+      if (type === 'depart') state.jours[idx].depart = heure;
+      sauvegarderDonnees(state);
+      rendreVue();
+    }
+
     function razHeuresSupp() {
-      const state = normaliserDonnees(chargerDonnees());
+      const state = chargerDonnees();
       let totalMin = 0;
       state.jours.forEach(d => {
         totalMin += calculerMinutes(d.arrivee, d.depart, d.pause);
@@ -228,8 +267,13 @@
       }
     }
 
-    /* Gestion Chronomètre Pause */
     function togglePauseChrono() {
+      const idx = getIndexJourActuelStrict();
+      if (idx === -1) {
+        alert("Le chronomètre de pause en direct est actif uniquement du lundi au vendredi.");
+        return;
+      }
+
       const cleChrono = 'pointage_pause_start';
       const start = localStorage.getItem(cleChrono);
 
@@ -242,8 +286,7 @@
         localStorage.removeItem(cleChrono);
         arreterTickPause();
 
-        const state = normaliserDonnees(chargerDonnees());
-        const idx = getIndexAujourdhui();
+        const state = chargerDonnees();
         const pauseActuelle = Number(state.jours[idx].pause) || 0;
         state.jours[idx].pause = pauseActuelle + (minutesAjoutees > 0 ? minutesAjoutees : 1);
         sauvegarderDonnees(state);
@@ -306,18 +349,32 @@
 
     function rendreVue() {
       majAffichageSemaine();
-      const state = normaliserDonnees(chargerDonnees());
+      const state = chargerDonnees();
       const container = document.getElementById('liste-jours');
       container.innerHTML = '';
 
+      const jourActuelIndex = getIndexJourActuelStrict();
+
       state.jours.forEach((d, idx) => {
         const total = calculerMinutes(d.arrivee, d.depart, d.pause);
+        const estAujourdhui = (idx === jourActuelIndex);
         const card = document.createElement('div');
-        card.className = 'bg-zinc-900 border border-zinc-800 rounded-xl p-3 space-y-2';
+        card.className = `bg-zinc-900 border ${estAujourdhui ? 'border-amber-500/50' : 'border-zinc-800'} rounded-xl p-3 space-y-2`;
         card.innerHTML = `
           <div class="flex justify-between items-center pb-1 border-b border-zinc-800/60">
-            <span class="font-semibold text-zinc-200 text-sm">${d.jour}</span>
-            <span id="total-${idx}" class="text-xs font-bold px-2 py-0.5 rounded bg-zinc-800 text-amber-400">${formaterHeures(total)}</span>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold ${estAujourdhui ? 'text-amber-400' : 'text-zinc-200'} text-sm">${d.jour}</span>
+              ${estAujourdhui ? '<span class="text-[10px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/20">Aujourd\'hui</span>' : ''}
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="pointerJourDirect(${idx}, 'arrivee')" title="Pointer l'arrivée maintenant" class="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-emerald-900/50 text-zinc-400 hover:text-emerald-300 transition-colors">
+                + Arr.
+              </button>
+              <button onclick="pointerJourDirect(${idx}, 'depart')" title="Pointer le départ maintenant" class="text-[11px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-orange-900/50 text-zinc-400 hover:text-orange-300 transition-colors">
+                + Dép.
+              </button>
+              <span id="total-${idx}" class="text-xs font-bold px-2 py-0.5 rounded bg-zinc-800 text-amber-400">${formaterHeures(total)}</span>
+            </div>
           </div>
           <div class="grid grid-cols-3 gap-2 pt-1 text-xs">
             <div>
